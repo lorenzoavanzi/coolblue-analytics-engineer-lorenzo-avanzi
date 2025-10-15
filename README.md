@@ -8,8 +8,6 @@ As part of this exercise, I focused on showing how sales and campaign data can b
 - Transformed and prepared using ELT best practices
 - Combined to deliver insights into campaign performance, actuals vs. forecasts, and top-performing products and stores
 
----
-
 **What does this repo contain?**
 
 - **Schema diagram:** diagrams/schema.mmd (star with fct_sales, fct_campaign_forecast_day, and a bridge to assign sales to campaigns deterministically)
@@ -19,4 +17,10 @@ As part of this exercise, I focused on showing how sales and campaign data can b
 
 > ⚠️ In-depth information about approach, assumptions, grains, tests, and how the model
 > answers the questions can be found below.
+
+---
+
+# **Section 1: Diagrams**
+
+**1.1. Architecture**
 
