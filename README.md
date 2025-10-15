@@ -50,10 +50,8 @@ Why
 
 3) Orchestration and Transformation
 How
-- dbt runs define lineage and order (staging → dims/bridge → facts)
-- Orchestrate with Airflow:
--- Morning full run for yesterday
-- Incremental models (facts) append/merge by date or ID to reduce compute time and costs (for large models mainly)
+- dbt transforms and runs define lineage and order (staging → dims/bridge → facts)
+- Orchestrate with Airflow: morning full run for yesterday; Incremental models (facts) append/merge by date or ID to reduce compute time and costs (for large models mainly)
 - We apply tests to model and column level lineage by using dbt's 5 standard data tests, but also leveraging packages like dbt.utils and expectations
 
 Why
@@ -63,5 +61,25 @@ Late-arriving & backfills
 - If a late order arrives, the bridge lookup by date still assigns the correct campaign (no reprocessing needed)
 - If campaign definitions change, we can rebuild the bridge and recompute affected dates/campaigns (bounded backfills)
 
+> For the structure, I went with a star schema style to make things more modular. It helps to keep measures in clear, additive facts and all
+>  business context in shared dimensions, so analysts can slice by any angle quickly and consistently.
+> The Silver → Gold → Marts split keeps work clean and reliable: Silver standardizes raw data (no business logic), Gold centralizes core rules
+>  and conformed entities (SCD dims, campaign bridge), and Marts expose final query-ready models for BI. This structure makes queries
+>  fast, definitions consistent, and changes easy to manage without breaking dashboards.
+
+4) Silver (staging layer)
+- stg_orders_* and stg_campaigns_* standardize types, column names, and compute only “obvious” fields (e.g., net_amount = amount_total - campaign_discount), and maybe some light deduplications
+Why: It shields downstream work from upstream quirks and provides a stable contract for core modeling. This speeds up development since every model starts from clean inputs
+
+5) Gold (Core)
+
+Dimensions (slow changing)
+- SCD2: dim_product, dim_product_type, dim_store keep historical attributes so sales roll up as they were at the time of the transaction
+- SCD1: dim_campaign, dim_manager capture current identity/labels (usually they do not need historical versions)
+
+Bridge
+I introduced the bridge to make campaign attribution deterministic, straightforward, and reliable. Since campaigns can include products either directly (by product) or indirectly (by product type), and can also overlap in time, joining sales straight to the campaign tables would create fanout, ambiguity, and double counting. The bridge solves this by precomputing one row per product × campaign, with valid_from/valid_to windows and a clear precedence rule (product‑level takes priority over type‑level). Facts then join once on date range, ensuring each sale maps to at most one campaign. This centralizes the business logic, keeps reports accurate, supports late‑arriving data and backfills, and makes attribution auditable and easy to adjust in one place.
+- bridge_product_campaign expands campaign definitions: unions product-level and product-type-level inclusions,  enforces “one active campaign per product/day” with date windows, tie-breaks in favor of product-level over type-level
+Why: a deterministic, auditable mapping from any sale (product, date) to the campaign in force. This keeps the rule centralized and prevents duplicate logic in facts/BI
 
 
