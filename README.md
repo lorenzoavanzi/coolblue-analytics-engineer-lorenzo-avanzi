@@ -33,6 +33,35 @@ What does this architecture flow enable?
 
 Left → Right
 1) Data Sources
-- Ordering System: orders, order_lines, products, product_types, stores.
-- Campaign Mgmt: campaigns, product inclusions (by product or type), managers, forecasts.
-Why: two independent systems hold actual sales vs. planning/ownership; we keep lineage separate to audit attribution later.
+- Ordering System: orders, order_lines, products, product_types, stores
+- Campaign Management: campaigns, product inclusions (by product or type), managers, forecasts
+Why: Different teams own these systems, and they possibly have evolved on their own with slightly different meanings. By modeling them separately from the start, we can track the lineage, keep things auditable, and show where each field originates from
+
+2) Ingestion (Bronze)
+How
+- Make raw tables one‑to‑one with the source through Fivetran (my choice as it will now integrate with dbt) into a raw (bronze) schema
+- Keep the source primary keys, timestamps, soft deletes, and schema evolution fields (like ingested_at, or valid_from, valid_to if we talking about SCD)
+- I don't apply any business logic here, just store exact copies
+
+Why
+- Bronze acts as the immutable system of record. If downstream rules change (let's say, a new allocation method), we can recompute in a clean way without going back to the source
+- It also gives us the ability to replay or reprocess data by time window or by entity (for example, campaign_id)
+- The trade off is that storing raw data takes up more space, but the payoff is huge in my opinion: easier debugging, reliable lineage, and the ability to “time travel” when needed
+
+3) Orchestration and Transformation
+How
+- dbt runs define lineage and order (staging → dims/bridge → facts)
+- Orchestrate with Airflow:
+-- Morning full run for yesterday
+- Incremental models (facts) append/merge by date or ID to reduce compute time and costs (for large models mainly)
+- We apply tests to model and column level lineage by using dbt's 5 standard data tests, but also leveraging packages like dbt.utils and expectations
+
+Why
+- Ensures repeatability, reliability, and early failure detection. We want failures to happen as upstream as possible
+
+Late-arriving & backfills
+- If a late order arrives, the bridge lookup by date still assigns the correct campaign (no reprocessing needed)
+- If campaign definitions change, we can rebuild the bridge and recompute affected dates/campaigns (bounded backfills)
+
+
+
