@@ -24,6 +24,8 @@ As part of this exercise, I focused on showing how sales and campaign data can b
 
 **1.1. Architecture**
 
+Click [here](diagrams/architecture.pdf) to view.
+
 What does this architecture flow enable?
 - Answers sales & quantity by day/week/year, product / product type / store / campaign / manager
 - Compares actuals vs. forecast at the same grain (campaign x product × day) for pacing/variance
