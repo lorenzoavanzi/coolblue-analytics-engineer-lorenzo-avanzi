@@ -19,9 +19,9 @@ As part of this exercise, I focused on showing how sales and campaign data can b
 
 ---
 
-# **Section 1: Diagrams**
+# **Diagrams Explanation and Rationale**
 
-**1.1. Architecture**
+# **1.1. Architecture**
 
 Click [here](diagrams/architecture.pdf) to view.
 
@@ -93,7 +93,7 @@ Why: Both fact tables line up on date + product + campaign. That makes actual vs
 - Semantic metrics (Net Sales, Units, Discount, Forecast, Variance) exposed to Looker/Tableau
 - Stakeholders can slice by time, product/type, store, campaign, manager and rank top campaigns
 
-**1.1. Schema**
+# **1.1. Schema**
 
 Click [here](diagrams/schema.pdf) to view.
 
