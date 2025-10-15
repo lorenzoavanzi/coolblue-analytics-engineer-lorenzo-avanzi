@@ -24,3 +24,13 @@ As part of this exercise, I focused on showing how sales and campaign data can b
 
 **1.1. Architecture**
 
+What does this architecture flow enable?
+- Answers sales & quantity by day/week/year, product / product type / store / campaign / manager
+- Compares actuals vs. forecast at the same grain (campaign x product × day) for pacing/variance
+- Provides the top campaigns by sales and lets stakeholders slice results from many angles
+
+Left → Right
+1) Data Sources
+- Ordering System: orders, order_lines, products, product_types, stores.
+- Campaign Mgmt: campaigns, product inclusions (by product or type), managers, forecasts.
+Why: two independent systems hold actual sales vs. planning/ownership; we keep lineage separate to audit attribution later.
