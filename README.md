@@ -82,4 +82,11 @@ I introduced the bridge to make campaign attribution deterministic, straightforw
 - bridge_product_campaign expands campaign definitions: unions product-level and product-type-level inclusions,  enforces “one active campaign per product/day” with date windows, tie-breaks in favor of product-level over type-level
 Why: a deterministic, auditable mapping from any sale (product, date) to the campaign in force. This keeps the rule centralized and prevents duplicate logic in facts/BI
 
+6) Marts (Facts)
+- fct_sales (grain = order_line): Keys to date, product, and store, with optional links to campaign/manager through the bridge. Measures include units, gross, discount, and net sales
+- fct_campaign_forecast_day (grain = campaign × product × day): Combines product‑ and type‑level forecasts, allocates type‑level forecasts down to products, and spreads them across days within the campaign window
+Why: Both fact tables line up on date + product + campaign. That makes actual vs. forecast a straightforward join, giving you clean variance and pacing metrics across any dimension
 
+7) BI / Analyses
+- Semantic metrics (Net Sales, Units, Discount, Forecast, Variance) exposed to Looker/Tableau
+- Stakeholders can slice by time, product/type, store, campaign, manager and rank top campaigns
