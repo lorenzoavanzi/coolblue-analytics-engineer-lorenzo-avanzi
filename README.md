@@ -78,8 +78,11 @@ Dimensions (slow changing)
 - SCD1: dim_campaign, dim_manager capture current identity/labels (usually they do not need historical versions)
 
 Bridge
+
 I introduced the bridge to make campaign attribution deterministic, straightforward, and reliable. Since campaigns can include products either directly (by product) or indirectly (by product type), and can also overlap in time, joining sales straight to the campaign tables would create fanout, ambiguity, and double counting. The bridge solves this by precomputing one row per product × campaign, with valid_from/valid_to windows and a clear precedence rule (product‑level takes priority over type‑level). Facts then join once on date range, ensuring each sale maps to at most one campaign. This centralizes the business logic, keeps reports accurate, supports late‑arriving data and backfills, and makes attribution auditable and easy to adjust in one place.
+
 - bridge_product_campaign expands campaign definitions: unions product-level and product-type-level inclusions,  enforces “one active campaign per product/day” with date windows, tie-breaks in favor of product-level over type-level
+
 Why: a deterministic, auditable mapping from any sale (product, date) to the campaign in force. This keeps the rule centralized and prevents duplicate logic in facts/BI
 
 6) Marts (Facts)
