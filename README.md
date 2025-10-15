@@ -10,10 +10,9 @@ As part of this exercise, I focused on showing how sales and campaign data can b
 
 **What does this repo contain?**
 
-- **Schema diagram:** diagrams/schema.mmd (star with fct_sales, fct_campaign_forecast_day, and a bridge to assign sales to campaigns deterministically)
-- **Architecture diagram:** diagrams/architecture.mmd (sources → ingestion → staging → core → marts → BI; dbt + tests)
-- **dbt-style models:** staging, core dims, bridge, facts, plus example tests
-- **Example queries:** in the README for top campaigns and actuals vs forecast.
+- **Schema diagram:** (within the `diagrams` folder)
+- **Architecture diagram:** (within the `diagrams` folder)
+- **A dbt-style model that answers a business question:**
 
 > ⚠️ In-depth information about approach, assumptions, grains, tests, and how the model
 > answers the questions can be found below.
