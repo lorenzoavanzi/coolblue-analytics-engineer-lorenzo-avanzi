@@ -31,7 +31,7 @@
    {% endif %}
 
 -- We first look at the actual net sales for each campaign by date
-sales_day AS (
+WITH sales_day AS (
     SELECT
         fs.date,
         fs.campaign_sk
