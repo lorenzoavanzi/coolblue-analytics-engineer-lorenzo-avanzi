@@ -31,12 +31,12 @@ What does this architecture flow enable?
 - Provides the top campaigns by sales and lets stakeholders slice results from many angles
 
 **Explanation from Left → Right:**
-1) Data Sources
+**1) Data Sources**
 - Ordering System: orders, order_lines, products, product_types, stores
 - Campaign Management: campaigns, product inclusions (by product or type), managers, forecasts
 - Why: Assuming that different teams own these systems, they possibly have evolved on their own with slightly different meanings and come from different places. By ingesting (and modeling) them separately from the start, we can track the lineage, keep things auditable, and show where each field originates from. This way we will always have the source to look back to, in case of bad data in downstream models, for example
 
-2) Ingestion (Bronze)
+**2) Ingestion (Bronze)**
 
 How:
 - Make raw tables one‑to‑one with the source through Fivetran (my choice as it will now integrate with dbt) into a raw (bronze) schema
@@ -49,7 +49,7 @@ Why:
 - It also gives us the ability to replay or reprocess data by time window or by entity (for example, campaign_id)
 - The trade off is that storing raw data takes up more space, but the payoff is huge in my opinion: easier debugging, reliable lineage, and the ability to “time travel” when needed
 
-3) Orchestration and Transformation
+**3) Orchestration and Transformation**
 
 How:
 - dbt does the heavy lifting and transforms and runs the lineage, and order (staging → dims/bridge → facts)
@@ -68,11 +68,11 @@ Late-arriving & backfills
 >  and conformed entities (SCD dims, campaign bridge), and Marts expose final query-ready models for BI.
 > Result: fast queries, consistent definitions, and easy changes (adjust the rule once in Gold and everything downstream stays coherent)
 
-4) Silver (staging layer)
+**4) Silver (staging layer)**
 - stg_orders_* and stg_campaigns_* standardize types, column names, and compute only “obvious” fields, and maybe some light deduplications from the source. The idea is to only do light transformations and not introduce any complex or business logic yet
 Why: It shields downstream work from upstream quirks (data type inconsistencies, renamed badly named fields, etc), creates a stable contract for Core/Gold (dims, bridge) so I can change upstream once and every dependent model stays sane, and they remain fast
 
-5) Gold (Core)
+**5) Gold (Core)**
 
 Dimensions (slow changing)
 - SCD2: dim_product, dim_product_type, dim_store keep historical attributes so sales roll up as they were at the time of the transaction. An example would be: if a product moves from “Beans” to “Capsules” in May, sales before May still roll up under Beans, and sales after May roll up under Capsules.
@@ -86,13 +86,13 @@ I introduced the bridge to make campaign attribution deterministic, straightforw
 
 Why: It is a more a deterministic and auditable mapping from any sale (product, date) to the campaign being queried. This keeps the rule centralized and prevents duplicate logic in facts/BI and analyses
 
-6) Marts (Facts)
+**6) Marts (Facts)**
 These are our “finished product” layer—clean, query-ready tables. Basically a way to make tables as small as possible for specific use cases, making them fast, stable, and performant for analysts to use
 - fct_sales (grain = order_line): Keys to date, product, and store, with optional links to campaign/manager through the bridge. Measures include units, gross, discount, and net sales
 - fct_campaign_forecast_day (grain = campaign × product × day): Combines product‑ and type‑level forecasts, allocates type‑level forecasts down to products, and spreads them across days within the campaign window
 Why: Both fact tables line up on date + product + campaign. That makes actual vs. forecast a straightforward join, giving me clean variance and "pacing" (to check progress) metrics across any dimension
 
-7) BI / Analyses
+**7) BI / Analyses**
 - Semantic metrics (Net Sales, Units, Discount, Forecast, Variance) exposed to Looker/Tableau
 - Stakeholders can slice by time, product/type, store, campaign, manager and rank top campaigns
 
