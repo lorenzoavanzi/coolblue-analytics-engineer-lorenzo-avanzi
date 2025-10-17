@@ -17,15 +17,18 @@
 {% set earliest_date_events = '2025-01-01' %}
 
 -- We use this macro to generate a continuous series of dates between a specified timeframe
-WITH date_sequence AS (
-    {{
-        dbt_utils.date_spine(
-            datepart="day",
-            start_date='{{ earliest_date_events }}'
-            end_date="CURRENT_DATE + 1"
-       )
-    }}
-)
+{{
+   dbt_utils.date_spine(
+      datepart="date",
+      start_date="'2015-01-01'::DATE",
+      end_date="CURRENT_DATE"
+      )
+}}
+   
+{% if is_incremental() %}
+   WHERE
+      (date > (SELECT MAX(t.date) FROM {{ this }} AS t)
+   {% endif %}
 
 -- We first look at the actual net sales for each campaign by date
 sales_day AS (
