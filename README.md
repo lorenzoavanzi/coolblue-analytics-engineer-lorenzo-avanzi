@@ -37,6 +37,7 @@ What does this architecture flow enable?
 - Why: Assuming that different teams own these systems, they possibly have evolved on their own with slightly different meanings and come from different places. By ingesting (and modeling) them separately from the start, we can track the lineage, keep things auditable, and show where each field originates from. This way we will always have the source to look back to, in case of bad data in downstream models, for example
 
 2) Ingestion (Bronze)
+
 How:
 - Make raw tables one‑to‑one with the source through Fivetran (my choice as it will now integrate with dbt) into a raw (bronze) schema
 - Keep the source primary keys, timestamps, soft deletes, and schema evolution fields (like ingested_at, or valid_from, valid_to if we talking about slow changing dimensions)
@@ -49,6 +50,7 @@ Why:
 - The trade off is that storing raw data takes up more space, but the payoff is huge in my opinion: easier debugging, reliable lineage, and the ability to “time travel” when needed
 
 3) Orchestration and Transformation
+
 How:
 - dbt does the heavy lifting and transforms and runs the lineage, and order (staging → dims/bridge → facts)
 - Orchestrate with Airflow: it schedules the runs; preferably every morning full run for yesterday; Incremental models (facts) append/merge by date or ID to reduce compute time and costs (for large models mainly)
