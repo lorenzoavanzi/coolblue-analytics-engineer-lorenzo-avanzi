@@ -30,64 +30,65 @@ What does this architecture flow enable?
 - Compares actuals vs. forecast at the same grain (campaign x product × day) for pacing/variance
 - Provides the top campaigns by sales and lets stakeholders slice results from many angles
 
-Left → Right
+**Explanation from Left → Right:**
 1) Data Sources
 - Ordering System: orders, order_lines, products, product_types, stores
 - Campaign Management: campaigns, product inclusions (by product or type), managers, forecasts
-Why: Different teams own these systems, and they possibly have evolved on their own with slightly different meanings. By modeling them separately from the start, we can track the lineage, keep things auditable, and show where each field originates from
+- Why: Assuming that different teams own these systems, they possibly have evolved on their own with slightly different meanings and come from different places. By ingesting (and modeling) them separately from the start, we can track the lineage, keep things auditable, and show where each field originates from. This way we will always have the source to look back to, in case of bad data in downstream models, for example
 
 2) Ingestion (Bronze)
-How
+- How
 - Make raw tables one‑to‑one with the source through Fivetran (my choice as it will now integrate with dbt) into a raw (bronze) schema
-- Keep the source primary keys, timestamps, soft deletes, and schema evolution fields (like ingested_at, or valid_from, valid_to if we talking about SCD)
-- I don't apply any business logic here, just store exact copies
+- Keep the source primary keys, timestamps, soft deletes, and schema evolution fields (like ingested_at, or valid_from, valid_to if we talking about slow changing dimensions)
+- I don't apply any business logic here, just store exact copies for the purpose of making it the single source of truth
 
-Why
+- Why:
 - Bronze acts as the immutable system of record. If downstream rules change (let's say, a new allocation method), we can recompute in a clean way without going back to the source
+- If someone asks “why does the dashboard say X?”, I can open the raw row and show exactly what the source sent
 - It also gives us the ability to replay or reprocess data by time window or by entity (for example, campaign_id)
 - The trade off is that storing raw data takes up more space, but the payoff is huge in my opinion: easier debugging, reliable lineage, and the ability to “time travel” when needed
 
 3) Orchestration and Transformation
-How
-- dbt transforms and runs define lineage and order (staging → dims/bridge → facts)
-- Orchestrate with Airflow: morning full run for yesterday; Incremental models (facts) append/merge by date or ID to reduce compute time and costs (for large models mainly)
-- We apply tests to model and column level lineage by using dbt's 5 standard data tests, but also leveraging packages like dbt.utils and expectations
+- How:
+- dbt does the heavy lifting and transforms and runs the lineage, and order (staging → dims/bridge → facts)
+- Orchestrate with Airflow: it schedules the runs; preferably every morning full run for yesterday; Incremental models (facts) append/merge by date or ID to reduce compute time and costs (for large models mainly)
+- We apply tests to model and column level lineage by using dbt's 5 standard data tests, but also leveraging packages like dbt.utils and expectations for more complex test logic
 
-Why
-- Ensures repeatability, reliability, and early failure detection. We want failures to happen as upstream as possible
+- Why
+- Ensures repeatability (same checks and order everyday), reliability, and early failure detection (I prioritize failing tests as upstream as possible).
 
 Late-arriving & backfills
 - If a late order arrives, the bridge lookup by date still assigns the correct campaign (no reprocessing needed)
 - If campaign definitions change, we can rebuild the bridge and recompute affected dates/campaigns (bounded backfills)
 
-> For the structure, I went with a star schema style to make things more modular. It helps to keep measures in clear, additive facts and all
->  business context in shared dimensions, so analysts can slice by any angle quickly and consistently.
+> For the structure, I went with a star schema style to make things more modular. I use a star schema so measures live in additive facts (sales, forecast) and business context lives in shared dimensions (Product, Store, Campaign, Manager). Analysts for example, can slice by any angle without double counting
 > The Silver → Gold → Marts split keeps work clean and reliable: Silver standardizes raw data (no business logic), Gold centralizes core rules
->  and conformed entities (SCD dims, campaign bridge), and Marts expose final query-ready models for BI. This structure makes queries
->  fast, definitions consistent, and changes easy to manage without breaking dashboards.
+>  and conformed entities (SCD dims, campaign bridge), and Marts expose final query-ready models for BI.
+> Result: fast queries, consistent definitions, and easy changes (adjust the rule once in Gold and everything downstream stays coherent)
 
 4) Silver (staging layer)
-- stg_orders_* and stg_campaigns_* standardize types, column names, and compute only “obvious” fields (e.g., net_amount = amount_total - campaign_discount), and maybe some light deduplications
-Why: It shields downstream work from upstream quirks and provides a stable contract for core modeling. This speeds up development since every model starts from clean inputs
+- stg_orders_* and stg_campaigns_* standardize types, column names, and compute only “obvious” fields, and maybe some light deduplications from the source. The idea is to only do light transformations and not introduce any complex or business logic yet
+Why: It shields downstream work from upstream quirks (data type inconsistencies, renamed badly named fields, etc), creates a stable contract for Core/Gold (dims, bridge) so I can change upstream once and every dependent model stays sane, and they remain fast
 
 5) Gold (Core)
 
 Dimensions (slow changing)
-- SCD2: dim_product, dim_product_type, dim_store keep historical attributes so sales roll up as they were at the time of the transaction
-- SCD1: dim_campaign, dim_manager capture current identity/labels (usually they do not need historical versions)
+- SCD2: dim_product, dim_product_type, dim_store keep historical attributes so sales roll up as they were at the time of the transaction. An example would be: if a product moves from “Beans” to “Capsules” in May, sales before May still roll up under Beans, and sales after May roll up under Capsules.
+- SCD1: dim_campaign, dim_manager capture current identity/labels (usually campaigns and their owners don’t need historical versioning)
 
 Bridge
 
-I introduced the bridge to make campaign attribution deterministic, straightforward, and reliable. Since campaigns can include products either directly (by product) or indirectly (by product type), and can also overlap in time, joining sales straight to the campaign tables would create fanout, ambiguity, and double counting. The bridge solves this by precomputing one row per product × campaign, with valid_from/valid_to windows and a clear precedence rule (product‑level takes priority over type‑level). Facts then join once on date range, ensuring each sale maps to at most one campaign. This centralizes the business logic, keeps reports accurate, supports late‑arriving data and backfills, and makes attribution auditable and easy to adjust in one place.
+I introduced the bridge to make campaign attribution deterministic, straightforward, and reliable. Since campaigns can include products either directly (by product) or indirectly (by product type), and can also overlap in time, joining sales straight to the campaign tables would create fanout (double counting when joined) and ambiguity. The bridge solves this by precomputing one row per product × campaign, with valid_from/valid_to windows and a clear precedence rule (product‑level takes priority over type‑level). Facts then join once on date range, ensuring each sale maps to at most one campaign. This centralizes the business logic, keeps reports accurate, supports late‑arriving data and backfills, and makes attribution auditable and easy to adjust in one place.
 
 - bridge_product_campaign expands campaign definitions: unions product-level and product-type-level inclusions,  enforces “one active campaign per product/day” with date windows, tie-breaks in favor of product-level over type-level
 
-Why: a deterministic, auditable mapping from any sale (product, date) to the campaign in force. This keeps the rule centralized and prevents duplicate logic in facts/BI
+Why: It is a more a deterministic and auditable mapping from any sale (product, date) to the campaign being queried. This keeps the rule centralized and prevents duplicate logic in facts/BI and analyses
 
 6) Marts (Facts)
+These are our “finished product” layer—clean, query-ready tables. Basically a way to make tables as small as possible for specific use cases, making them fast, stable, and performant for analysts to use
 - fct_sales (grain = order_line): Keys to date, product, and store, with optional links to campaign/manager through the bridge. Measures include units, gross, discount, and net sales
 - fct_campaign_forecast_day (grain = campaign × product × day): Combines product‑ and type‑level forecasts, allocates type‑level forecasts down to products, and spreads them across days within the campaign window
-Why: Both fact tables line up on date + product + campaign. That makes actual vs. forecast a straightforward join, giving you clean variance and pacing metrics across any dimension
+Why: Both fact tables line up on date + product + campaign. That makes actual vs. forecast a straightforward join, giving me clean variance and "pacing" (to check progress) metrics across any dimension
 
 7) BI / Analyses
 - Semantic metrics (Net Sales, Units, Discount, Forecast, Variance) exposed to Looker/Tableau
